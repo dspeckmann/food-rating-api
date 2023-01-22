@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: docker.io/postgres:15
+    restart: always
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-p", "5432", "-U", "food_rating_dev", "-d", "food_rating_dev" ]
+    environment:
+      POSTGRES_USER: food_rating_dev
+      POSTGRES_PASSWORD: food_rating_dev
+      POSTGRES_DB: food_rating_dev
+    volumes:
+      - db-volume:/var/lib/postgresql/data
+    ports:
+      - "5499:5432"
+
+volumes:
+  db-volume:
