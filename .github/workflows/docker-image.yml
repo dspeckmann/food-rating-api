@@ -25,3 +25,4 @@ jobs:
       uses: docker/build-push-action@v3.3.0
       with:
         tags: "dspeckmann/food-rating-api:latest"
+        push: true
