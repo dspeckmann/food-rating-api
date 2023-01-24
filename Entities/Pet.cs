@@ -5,6 +5,7 @@ public class Pet
     public Guid Id { get; set; }
     public string[] OwnerIds { get; set; }
     public DateTime CreatedAt { get; set; }
+    // TODO: Add UpdatedAt
     public string Name { get; set; }
     public ICollection<Food> Foods { get; set; }
 

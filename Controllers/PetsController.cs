@@ -32,6 +32,22 @@ public class PetsController : ControllerBase
         return Ok(pets);
     }
 
+    [HttpGet("{petId}")]
+    public async Task<ActionResult<PetDto>> GetPetById(Guid petId)
+    {
+        var userId = User.GetUserId();
+        var pet = await _context.FindAsync<Pet>(petId);
+        if (pet is null)
+        {
+            return NotFound();
+        }
+        if (!pet.OwnerIds.Contains(userId))
+        {
+            return Forbid();
+        }
+        return new PetDto(pet.Id, pet.Name);
+    }
+
     [HttpPost]
     public async Task<ActionResult<PetDto>> CreatePet([FromBody] CreatePetDto dto)
     {
