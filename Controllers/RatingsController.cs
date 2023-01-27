@@ -4,8 +4,6 @@ using FoodRatingApi.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Buffers.Text;
-using System.Text;
 
 namespace FoodRatingApi.Controllers;
 
@@ -23,40 +21,84 @@ public class RatingsController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet("/api/Pets/{petId}/[controller]/")]
-    public async Task<ActionResult<IEnumerable<RatingDto>>> GetAllRatings([FromRoute] Guid petId)
+    [HttpGet("/api/[controller]/")]
+    public async Task<ActionResult<IEnumerable<RatingDto>>> GetAllRatings()
     {
-        var userId = User.GetUserId();
-        var ratings = await _context.FoodRatings
-            .Where(rating => rating.Food!.Pet!.OwnerIds.Contains(userId))
-            .Select(rating => new RatingDto(rating.Rating, rating.Food!.Picture!.DataString, rating.CreatedAt))
-            .ToListAsync();
+        var ratings = await GetRatingsAsync();
         return Ok(ratings);
     }
 
-    [HttpPost("/api/Pets/{petId}/[controller]/")]
-    public async Task<ActionResult<RatingDto>> AddRating([FromRoute] Guid petId, [FromBody] CreateRatingDto dto)
+    [HttpGet("/api/Pets/{petId}/[controller]/")]
+    public async Task<ActionResult<IEnumerable<RatingDto>>> GetRatingsByPetId([FromRoute] Guid petId)
+    {
+        var ratings = await GetRatingsAsync(petId);
+        return Ok(ratings);
+    }
+
+    private async Task<IEnumerable<RatingDto>> GetRatingsAsync(Guid? petId = null)
     {
         var userId = User.GetUserId();
-        var pet = await _context.FindAsync<Pet>(petId);
-        if (pet is null)
+        IQueryable<FoodRating> query = _context.FoodRatings
+            .Where(rating => rating.UserId == userId)
+            .Include(rating => rating.Picture)
+            .Include(rating => rating.Food)
+                .ThenInclude(food => food!.Picture)
+            .Include(rating => rating.Pets)
+                .ThenInclude(pet => pet.Picture);
+
+        if (petId is not null)
         {
-            return NotFound();
+            query = query.Where(rating => rating.Pets.Any(pet => pet.Id == petId));
         }
-        if (!pet.OwnerIds.Contains(userId))
+
+        return await query
+            .Select(rating => new RatingDto(
+                rating.Pets.Select(pet => new PetDto(pet.Id, pet.Name, pet.Picture!.DataString, pet.CreatedAt, pet.UpdatedAt)),
+                new FoodDto(rating.Food!.Id, rating.Food!.Name, rating.Food!.Picture!.DataString, rating.Food.CreatedAt, rating.Food.UpdatedAt),
+                rating.Taste,
+                rating.Wellbeing,
+                rating.Comment,
+                rating.Picture!.DataString,
+                rating.CreatedAt))
+            .ToListAsync();
+    }
+
+    [HttpPost("/api/[controller]/")]
+    public async Task<ActionResult<RatingDto>> AddRating([FromBody] CreateRatingDto dto)
+    {
+        var userId = User.GetUserId();
+        var food = await _context.Foods.FindAsync(dto.FoodId);
+        var pets = await _context.Pets
+            .Where(pet => dto.PetIds.Contains(pet.Id))
+            .ToListAsync();
+
+        if (food is null || pets.Count != dto.PetIds.Length)
+        {
+            return BadRequest();
+        }
+
+        // TODO: Should foods also be shared across accounts?
+        if (food.UserId != userId || pets.Any(pet => !pet.OwnerIds.Contains(userId)))
         {
             return Forbid();
         }
-        var picture = new Picture(dto.PictureDataString);
-        var rating = new FoodRating(userId, dto.Rating);
-        var food = new Food
+
+        var rating = new FoodRating(userId, pets, food, dto.Taste, dto.Wellbeing, dto.Comment);
+
+        if (!string.IsNullOrWhiteSpace(dto.PictureDataString))
         {
-            Picture = picture,
-            Pet = pet,
-            FoodRatings = new List<FoodRating>() { rating }
-        };
-        _context.Add(food);
+            rating.Picture = new Picture(dto.PictureDataString);
+        }
+
+        _context.Add(rating);
         await _context.SaveChangesAsync();
-        return Ok(new RatingDto(rating.Rating, dto.PictureDataString, rating.CreatedAt));
+        return Ok(new RatingDto(
+            rating.Pets.Select(pet => new PetDto(pet.Id, pet.Name, pet.Picture!.DataString, pet.CreatedAt, pet.UpdatedAt)),
+            new FoodDto(rating.Food!.Id, rating.Food!.Name, rating.Food!.Picture!.DataString, rating.Food.CreatedAt, rating.Food.UpdatedAt),
+            rating.Taste,
+            rating.Wellbeing,
+            rating.Comment,
+            rating.Picture!.DataString,
+            rating.CreatedAt));
     }
 }

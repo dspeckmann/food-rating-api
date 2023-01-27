@@ -1,6 +1,6 @@
 ﻿namespace FoodRatingApi.Entities;
 
-public enum Rating
+public enum Taste
 {
     Good = 1,
     Medium = 2,

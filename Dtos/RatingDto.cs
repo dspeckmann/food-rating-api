@@ -2,4 +2,11 @@
 
 namespace FoodRatingApi.Dtos;
 
-public record RatingDto(Rating Rating, string PictureDataString, DateTime CreatedAt);
+public record RatingDto(
+    IEnumerable<PetDto> Pets,
+    FoodDto Food,
+    Taste? Taste, 
+    Wellbeing? Wellbeing, 
+    string Comment, 
+    string PictureDataString, 
+    DateTime CreatedAt);
