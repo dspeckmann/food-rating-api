@@ -1,3 +1,3 @@
 ﻿namespace FoodRatingApi.Dtos;
 
-public record CreatePetDto(string Name, string? PictureDataString);
+public record CreatePetDto(string Name, Guid? PictureId);

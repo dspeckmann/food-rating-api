@@ -1,6 +1,7 @@
 using FoodRatingApi.Dtos;
 using FoodRatingApi.Entities;
 using FoodRatingApi.Extensions;
+using FoodRatingApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,11 +14,13 @@ namespace FoodRatingApi.Controllers;
 public class FoodsController : ControllerBase
 {
     private readonly FoodRatingDbContext _context;
+    private readonly IStorageService _storageService;
     private readonly ILogger<FoodsController> _logger;
 
-    public FoodsController(FoodRatingDbContext context, ILogger<FoodsController> logger)
+    public FoodsController(FoodRatingDbContext context, IStorageService storageService ,ILogger<FoodsController> logger)
     {
         _context = context;
+        _storageService = storageService;
         _logger = logger;
     }
 
@@ -28,9 +31,11 @@ public class FoodsController : ControllerBase
         var foods = await _context.Foods
             .Include(food => food.Picture)
             .Where(food => food.UserId == userId)
-            .Select(food => new FoodDto(food.Id, food.Name, food.Picture!.DataString, food.CreatedAt, food.UpdatedAt))
             .ToListAsync();
-        return Ok(foods);
+
+        var dtos = foods.Select(async food => await MakeFoodDto(food));
+
+        return Ok(dtos);
     }
 
     [HttpGet("{foodId}")]
@@ -51,7 +56,7 @@ public class FoodsController : ControllerBase
             return Forbid();
         }
 
-        return Ok(new FoodDto(food.Id, food.Name, food.Picture?.DataString, food.CreatedAt, food.UpdatedAt));
+        return Ok(await MakeFoodDto(food));
     }
 
     [HttpPost]
@@ -60,14 +65,20 @@ public class FoodsController : ControllerBase
         var userId = User.GetUserId();
         var food = new Food(userId, dto.Name, dto.Comment);
 
-        if (!string.IsNullOrWhiteSpace(dto.PictureDataString))
+        if (dto.PictureId is not null)
         {
-            food.Picture = new Picture(dto.PictureDataString);
+            var picture = await _context.Pictures.FindAsync(dto.PictureId);
+            if (picture is null)
+            {
+                return BadRequest();
+            }
+
+            food.Picture = picture;
         }
 
         _context.Add(food);
         await _context.SaveChangesAsync();
-        return Ok(new FoodDto(food.Id, food.Name, food.Picture?.DataString, food.CreatedAt, food.UpdatedAt));
+        return Ok(await MakeFoodDto(food));
     }
 
     [HttpPut("{foodId}")]
@@ -91,20 +102,32 @@ public class FoodsController : ControllerBase
         food.Name = dto.Name;
         food.Comment = dto.Comment;
         food.UpdatedAt = DateTime.UtcNow;
-        if (!string.IsNullOrWhiteSpace(dto.PictureDataString))
+
+        var oldPictureObjectName = string.Empty;
+        if (dto.PictureId is not null && (food.Picture is null || food.Picture.Id != dto.PictureId))
         {
             if (food.Picture is not null)
             {
-                food.Picture.DataString = dto.PictureDataString;
+                oldPictureObjectName = food.Picture.ObjectName;
+                _context.Pictures.Remove(food.Picture);
             }
-            else
+
+            var picture = await _context.Pictures.FindAsync(dto.PictureId);
+            if (picture is null)
             {
-                food.Picture = new Picture(dto.PictureDataString);
+                return BadRequest();
             }
+
+            food.Picture = picture;
         }
 
         await _context.SaveChangesAsync();
-        return Ok(new FoodDto(food.Id, food.Name, food.Picture?.DataString, food.CreatedAt, food.UpdatedAt));
+        if (!string.IsNullOrWhiteSpace(oldPictureObjectName))
+        {
+            await _storageService.DeleteObject(StorageBucketNames.Pictures, oldPictureObjectName);
+        }
+
+        return Ok(await MakeFoodDto(food));
     }
 
     [HttpDelete("{foodId}")]
@@ -126,5 +149,19 @@ public class FoodsController : ControllerBase
         _context.Remove(food);
         await _context.SaveChangesAsync();
         return Ok();
+    }
+
+    private async Task<FoodDto> MakeFoodDto(Food food)
+    {
+        var pictureDto = food.Picture is not null
+            ? new PictureDto(food.Picture.Id, await _storageService.GetPresignedDownloadUrl(StorageBucketNames.Pictures, food.Picture.ObjectName)
+            : null;
+
+        return new FoodDto(
+            food.Id,
+            food.Name,
+            pictureDto,
+            food.CreatedAt,
+            food.UpdatedAt);
     }
 }

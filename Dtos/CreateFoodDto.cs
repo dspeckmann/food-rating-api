@@ -1,3 +1,3 @@
 ﻿namespace FoodRatingApi.Dtos;
 
-public record CreateFoodDto(string Name = "", string Comment = "", string? PictureDataString = null);
+public record CreateFoodDto(string Name = "", string Comment = "", Guid? PictureId = null);

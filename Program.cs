@@ -1,4 +1,5 @@
 using FoodRatingApi.Entities;
+using FoodRatingApi.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ builder.Services.AddDbContext<FoodRatingDbContext>(options =>
     options.UseNpgsql(config.GetConnectionString("Default"));
 });
 
+builder.Services.AddObjectStorage();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

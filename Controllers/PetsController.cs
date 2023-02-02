@@ -1,6 +1,7 @@
 using FoodRatingApi.Dtos;
 using FoodRatingApi.Entities;
 using FoodRatingApi.Extensions;
+using FoodRatingApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,11 +14,13 @@ namespace FoodRatingApi.Controllers;
 public class PetsController : ControllerBase
 {
     private readonly FoodRatingDbContext _context;
+    private readonly IStorageService _storageService;
     private readonly ILogger<PetsController> _logger;
 
-    public PetsController(FoodRatingDbContext context, ILogger<PetsController> logger)
+    public PetsController(FoodRatingDbContext context, IStorageService storageService, ILogger<PetsController> logger)
     {
         _context = context;
+        _storageService = storageService;
         _logger = logger;
     }
 
@@ -28,8 +31,10 @@ public class PetsController : ControllerBase
         var pets = await _context.Pets
             .Include(pet => pet.Picture)
             .Where(pet => pet.OwnerIds.Contains(userId))
-            .Select(pet => new PetDto(pet.Id, pet.Name, pet.Picture!.DataString, pet.CreatedAt, pet.UpdatedAt))
             .ToListAsync();
+
+        var dtos = pets.Select(async pet => await MakePetDto(pet));
+            
         return Ok(pets);
     }
 
@@ -51,7 +56,7 @@ public class PetsController : ControllerBase
             return Forbid();
         }
 
-        return Ok(new PetDto(pet.Id, pet.Name, pet.Picture?.DataString, pet.CreatedAt, pet.UpdatedAt));
+        return Ok(await MakePetDto(pet));
     }
 
     [HttpPost]
@@ -63,14 +68,21 @@ public class PetsController : ControllerBase
             OwnerIds = new[] { userId }
         };
 
-        if (!string.IsNullOrWhiteSpace(dto.PictureDataString))
+        // TODO: Implement this in all controllers
+        if (dto.PictureId is not null)
         {
-            pet.Picture = new Picture(dto.PictureDataString);
+            var picture = await _context.Pictures.FindAsync(dto.PictureId);
+            if (picture is null)
+            {
+                return BadRequest();
+            }
+
+            pet.Picture = picture;
         }
 
         _context.Add(pet);
         await _context.SaveChangesAsync();
-        return Ok(new PetDto(pet.Id, pet.Name, pet.Picture?.DataString, pet.CreatedAt, pet.UpdatedAt));
+        return Ok(await MakePetDto(pet));
     }
 
     [HttpPut("{petId}")]
@@ -93,20 +105,33 @@ public class PetsController : ControllerBase
 
         pet.Name = dto.Name;
         pet.UpdatedAt = DateTime.UtcNow;
-        if (!string.IsNullOrWhiteSpace(dto.PictureDataString))
+
+        // TODO: Implement this in all controllers
+        var oldPictureObjectName = string.Empty;
+        if (dto.PictureId is not null && (pet.Picture is null || pet.Picture.Id != dto.PictureId))
         {
             if (pet.Picture is not null)
             {
-                pet.Picture.DataString = dto.PictureDataString;
+                oldPictureObjectName = pet.Picture.ObjectName;
+                _context.Pictures.Remove(pet.Picture);
             }
-            else
+
+            var picture = await _context.Pictures.FindAsync(dto.PictureId);
+            if (picture is null)
             {
-                pet.Picture = new Picture(dto.PictureDataString);
+                return BadRequest();
             }
+
+            pet.Picture = picture;
         }
 
         await _context.SaveChangesAsync();
-        return Ok(new PetDto(pet.Id, pet.Name, pet.Picture?.DataString, pet.CreatedAt, pet.UpdatedAt));
+        if (!string.IsNullOrWhiteSpace(oldPictureObjectName))
+        {
+            await _storageService.DeleteObject(StorageBucketNames.Pictures, oldPictureObjectName);
+        }
+
+        return Ok();
     }
 
     [HttpDelete("{petId}")]
@@ -125,5 +150,22 @@ public class PetsController : ControllerBase
         _context.Remove(pet);
         await _context.SaveChangesAsync();
         return Ok();
+    }
+
+    // TODO: Implement this in all controllers
+    private async Task<PetDto> MakePetDto(Pet pet)
+    {
+        return new PetDto(pet.Id, pet.Name, await MakePictureDto(pet.Picture), pet.CreatedAt, pet.UpdatedAt);
+    }
+
+    private async Task<PictureDto?> MakePictureDto(Picture? picture)
+    {
+        if (picture is null)
+        {
+            return null;
+        }
+
+        var downloadUrl = await _storageService.GetPresignedDownloadUrl(StorageBucketNames.Pictures, picture.ObjectName);
+        return new PictureDto(picture.Id, downloadUrl);
     }
 }

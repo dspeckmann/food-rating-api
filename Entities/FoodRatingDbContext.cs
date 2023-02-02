@@ -6,7 +6,8 @@ namespace FoodRatingApi.Entities
     {
         public DbSet<Pet> Pets { get; set; }
         public DbSet<Food> Foods { get; set; }
-        public DbSet<FoodRating> FoodRatings { get; set; }
+        public DbSet<Picture> Pictures { get; set; }
+        public DbSet<Invitation> Invitations { get; set; }
 
         public FoodRatingDbContext(DbContextOptions<FoodRatingDbContext> options)
             : base(options)

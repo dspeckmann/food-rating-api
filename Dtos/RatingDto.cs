@@ -3,10 +3,10 @@
 namespace FoodRatingApi.Dtos;
 
 public record RatingDto(
-    IEnumerable<PetDto> Pets,
+    PetDto Pet,
     FoodDto Food,
     Taste? Taste, 
     Wellbeing? Wellbeing, 
-    string Comment, 
-    string PictureDataString, 
+    string Comment,
+    PictureDto? Picture,
     DateTime CreatedAt);
