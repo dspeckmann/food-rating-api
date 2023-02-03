@@ -1,6 +1,7 @@
 using FoodRatingApi.Dtos;
 using FoodRatingApi.Entities;
 using FoodRatingApi.Extensions;
+using FoodRatingApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,11 +14,13 @@ namespace FoodRatingApi.Controllers;
 public class RatingsController : ControllerBase
 {
     private readonly FoodRatingDbContext _context;
+    private readonly IStorageService _storageService;
     private readonly ILogger<RatingsController> _logger;
 
-    public RatingsController(FoodRatingDbContext context, ILogger<RatingsController> logger)
+    public RatingsController(FoodRatingDbContext context, IStorageService storageService, ILogger<RatingsController> logger)
     {
         _context = context;
+        _storageService = storageService;
         _logger = logger;
     }
 
@@ -28,7 +31,7 @@ public class RatingsController : ControllerBase
         return Ok(ratings);
     }
 
-    [HttpGet("/api/Pets/{petId}/[controller]/")]
+    [HttpGet("/api/pets/{petId}/[controller]/")]
     public async Task<ActionResult<IEnumerable<RatingDto>>> GetRatingsByPetId([FromRoute] Guid petId)
     {
         var ratings = await GetRatingsAsync(petId);
@@ -51,16 +54,9 @@ public class RatingsController : ControllerBase
             query = query.Where(rating => rating.Pet!.Id == petId);
         }
 
-        return await query
-            .Select(rating => new RatingDto(
-                new PetDto(rating.Pet!.Id, rating.Pet!.Name, rating.Pet!.Picture!.DataString, rating.Pet!.CreatedAt, rating.Pet!.UpdatedAt),
-                new FoodDto(rating.Food!.Id, rating.Food!.Name, rating.Food!.Picture!.DataString, rating.Food.CreatedAt, rating.Food.UpdatedAt),
-                rating.Taste,
-                rating.Wellbeing,
-                rating.Comment,
-                rating.Picture!.DataString,
-                rating.CreatedAt))
-            .ToListAsync();
+        var ratings = await query.ToListAsync();
+        return await Task.WhenAll(ratings.Select(rating => MakeRatingDto(rating)));
+
     }
 
     [HttpPost("/api/[controller]/")]
@@ -83,25 +79,53 @@ public class RatingsController : ControllerBase
 
         var rating = new FoodRating(userId, pet, food, dto.Taste, dto.Wellbeing, dto.Comment);
 
-        if (!string.IsNullOrWhiteSpace(dto.PictureId))
+        if (dto.PictureId is not null)
         {
             var picture = await _context.Pictures.FindAsync(dto.PictureId);
             if (picture is null)
             {
                 return BadRequest();
             }
+
             rating.Picture = picture;
         }
 
         _context.Add(rating);
         await _context.SaveChangesAsync();
-        return Ok(new RatingDto(
-            new PetDto(rating.Pet!.Id, rating.Pet!.Name, rating.Pet!.Picture!.DataString, rating.Pet!.CreatedAt, rating.Pet!.UpdatedAt),
-            new FoodDto(rating.Food!.Id, rating.Food!.Name, rating.Food!.Picture!.DataString, rating.Food.CreatedAt, rating.Food.UpdatedAt),
-            rating.Taste,
-            rating.Wellbeing,
-            rating.Comment,
-            rating.Picture!.DataString,
-            rating.CreatedAt));
+        return Ok(await MakeRatingDto(rating));
+    }
+
+    [HttpDelete("{ratingId}")]
+    public async Task<ActionResult> DeleteRating([FromRoute] Guid ratingId)
+    {
+        var userId = User.GetUserId();
+        var rating = await _context.FoodRatings
+            .Include(rating => rating.Pet)
+            .FirstOrDefaultAsync(rating => rating.Id == ratingId);
+        
+        if (rating is null)
+        {
+            return NotFound();
+        }
+        
+        if (!rating.Pet!.OwnerIds.Contains(userId))
+        {
+            return Forbid();
+        }
+
+        _context.Remove(rating);
+        await _context.SaveChangesAsync();
+        return Ok();
+    }
+
+    private async Task<RatingDto> MakeRatingDto(FoodRating rating)
+    {
+        var pet = new PetDto(rating.Pet!.Id, rating.Pet.Name, null, rating.Pet.CreatedAt, rating.Pet.UpdatedAt);
+        var food = new FoodDto(rating.Food!.Id, rating.Food.Name, null, rating.Food.CreatedAt, rating.Food.UpdatedAt);
+        var picture = rating.Picture is not null
+            ? new PictureDto(rating.Picture.Id, await _storageService.GetPresignedDownloadUrl(StorageBucketNames.Pictures, rating.Picture.ObjectName))
+            : null;
+
+        return new RatingDto(pet, food, rating.Taste, rating.Wellbeing, rating.Comment, picture, rating.CreatedAt);
     }
 }

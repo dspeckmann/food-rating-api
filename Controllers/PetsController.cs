@@ -33,9 +33,8 @@ public class PetsController : ControllerBase
             .Where(pet => pet.OwnerIds.Contains(userId))
             .ToListAsync();
 
-        var dtos = pets.Select(async pet => await MakePetDto(pet));
-            
-        return Ok(pets);
+        var dtos = await Task.WhenAll(pets.Select(pet => MakePetDto(pet)));
+        return Ok(dtos);
     }
 
     [HttpGet("{petId}")]
@@ -68,7 +67,6 @@ public class PetsController : ControllerBase
             OwnerIds = new[] { userId }
         };
 
-        // TODO: Implement this in all controllers
         if (dto.PictureId is not null)
         {
             var picture = await _context.Pictures.FindAsync(dto.PictureId);
@@ -131,7 +129,7 @@ public class PetsController : ControllerBase
             await _storageService.DeleteObject(StorageBucketNames.Pictures, oldPictureObjectName);
         }
 
-        return Ok();
+        return Ok(await MakePetDto(pet));
     }
 
     [HttpDelete("{petId}")]
@@ -152,7 +150,6 @@ public class PetsController : ControllerBase
         return Ok();
     }
 
-    // TODO: Implement this in all controllers
     private async Task<PetDto> MakePetDto(Pet pet)
     {
         return new PetDto(pet.Id, pet.Name, await MakePictureDto(pet.Picture), pet.CreatedAt, pet.UpdatedAt);

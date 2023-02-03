@@ -24,7 +24,7 @@ public class PicturesController : ControllerBase
         _logger = logger;
     }
 
-    [HttpPost("/api/[controller]/")]
+    [HttpPost]
     public async Task<ActionResult<NewPictureDto>> CreatePicture([FromBody] CreatePictureDto dto)
     {
         var userId = User.GetUserId();
@@ -33,5 +33,24 @@ public class PicturesController : ControllerBase
         await _context.Pictures.AddAsync(picture);
         await _context.SaveChangesAsync();
         return Ok(new NewPictureDto(picture.Id, uploadUrl));
+    }
+
+    [HttpDelete("{pictureId}")]
+    public async Task<ActionResult> DeletePicture([FromRoute] Guid pictureId)
+    {
+        var userId = User.GetUserId();
+        var picture = await _context.Pictures.FindAsync(pictureId);
+
+        if (picture is null)
+        {
+            return NotFound();
+        }
+
+        // TODO: Check owner. Or store owner first :D
+
+        await _storageService.DeleteObject(StorageBucketNames.Pictures, picture.ObjectName);
+        _context.Remove(picture);
+        await _context.SaveChangesAsync();
+        return Ok();
     }
 }

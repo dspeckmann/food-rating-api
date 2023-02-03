@@ -29,7 +29,11 @@ public class StorageService : IStorageService
 
     public async Task<string> GetPresignedUploadUrl(string bucketName, string objectName, int expiresIn = 300)
     {
+        await CreateBucketIfItDoesNotExist(bucketName);
         var args = new PresignedPutObjectArgs()
+            {
+                IsBucketCreationRequest = true
+            }
             .WithBucket(bucketName)
             .WithObject(objectName)
             .WithExpiry(expiresIn);
@@ -44,5 +48,19 @@ public class StorageService : IStorageService
             .WithObject(objectName);
 
         await _minioClient.RemoveObjectAsync(args);
+    }
+
+    private async Task CreateBucketIfItDoesNotExist(string bucketName)
+    {
+        // TODO: Is this cached automatically?
+        var bucketExistsArgs = new BucketExistsArgs()
+            .WithBucket(bucketName);
+
+        if (!await _minioClient.BucketExistsAsync(bucketExistsArgs))
+        {
+            var makeBucketArgs = new MakeBucketArgs()
+                .WithBucket(bucketName);
+            await _minioClient.MakeBucketAsync(makeBucketArgs);
+        }
     }
 }

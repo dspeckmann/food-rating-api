@@ -17,6 +17,11 @@ public class Invitation
         ExpiresAt = CreatedAt.Add(validity);
     }
 
+    public Invitation(Guid id, string userId, DateTime createdAt, DateTime expiresAt)
+        : this(id, userId, null, createdAt, expiresAt)
+    {
+    }
+
     public Invitation(Guid id, string userId, Pet? pet, DateTime createdAt, DateTime expiresAt)
     {
         Id = id;

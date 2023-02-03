@@ -33,8 +33,7 @@ public class FoodsController : ControllerBase
             .Where(food => food.UserId == userId)
             .ToListAsync();
 
-        var dtos = foods.Select(async food => await MakeFoodDto(food));
-
+        var dtos = await Task.WhenAll(foods.Select(food => MakeFoodDto(food)));
         return Ok(dtos);
     }
 
@@ -154,7 +153,7 @@ public class FoodsController : ControllerBase
     private async Task<FoodDto> MakeFoodDto(Food food)
     {
         var pictureDto = food.Picture is not null
-            ? new PictureDto(food.Picture.Id, await _storageService.GetPresignedDownloadUrl(StorageBucketNames.Pictures, food.Picture.ObjectName)
+            ? new PictureDto(food.Picture.Id, await _storageService.GetPresignedDownloadUrl(StorageBucketNames.Pictures, food.Picture.ObjectName))
             : null;
 
         return new FoodDto(
