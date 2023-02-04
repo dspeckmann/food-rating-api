@@ -15,12 +15,18 @@ public class FoodsController : ControllerBase
 {
     private readonly FoodRatingDbContext _context;
     private readonly IStorageService _storageService;
+    private readonly IFoodRatingDtoMapper _mapper;
     private readonly ILogger<FoodsController> _logger;
 
-    public FoodsController(FoodRatingDbContext context, IStorageService storageService ,ILogger<FoodsController> logger)
+    public FoodsController(
+        FoodRatingDbContext context,
+        IStorageService storageService,
+        IFoodRatingDtoMapper mapper,
+        ILogger<FoodsController> logger)
     {
         _context = context;
         _storageService = storageService;
+        _mapper = mapper;
         _logger = logger;
     }
 
@@ -33,7 +39,7 @@ public class FoodsController : ControllerBase
             .Where(food => food.UserId == userId)
             .ToListAsync();
 
-        var dtos = await Task.WhenAll(foods.Select(food => MakeFoodDto(food)));
+        var dtos = await Task.WhenAll(foods.Select(food => _mapper.MakeFoodDto(food)));
         return Ok(dtos);
     }
 
@@ -55,7 +61,7 @@ public class FoodsController : ControllerBase
             return Forbid();
         }
 
-        return Ok(await MakeFoodDto(food));
+        return Ok(await _mapper.MakeFoodDto(food));
     }
 
     [HttpPost]
@@ -77,7 +83,7 @@ public class FoodsController : ControllerBase
 
         _context.Add(food);
         await _context.SaveChangesAsync();
-        return Ok(await MakeFoodDto(food));
+        return Ok(await _mapper.MakeFoodDto(food));
     }
 
     [HttpPut("{foodId}")]
@@ -126,14 +132,16 @@ public class FoodsController : ControllerBase
             await _storageService.DeleteObject(StorageBucketNames.Pictures, oldPictureObjectName);
         }
 
-        return Ok(await MakeFoodDto(food));
+        return Ok(await _mapper.MakeFoodDto(food));
     }
 
     [HttpDelete("{foodId}")]
     public async Task<ActionResult> DeleteFood([FromRoute] Guid foodId)
     {
         var userId = User.GetUserId();
-        var food = await _context.FindAsync<Food>(foodId);
+        var food = await _context.Foods
+            .Include(food => food.Picture)
+            .FirstOrDefaultAsync(food => food.Id == foodId);
 
         if (food is null)
         {
@@ -145,22 +153,15 @@ public class FoodsController : ControllerBase
             return Forbid();
         }
 
+        var pictureObjectName = food.Picture?.ObjectName;
         _context.Remove(food);
         await _context.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(pictureObjectName))
+        {
+            await _storageService.DeleteObject(StorageBucketNames.Pictures, pictureObjectName);
+        }
+
         return Ok();
-    }
-
-    private async Task<FoodDto> MakeFoodDto(Food food)
-    {
-        var pictureDto = food.Picture is not null
-            ? new PictureDto(food.Picture.Id, await _storageService.GetPresignedDownloadUrl(StorageBucketNames.Pictures, food.Picture.ObjectName))
-            : null;
-
-        return new FoodDto(
-            food.Id,
-            food.Name,
-            pictureDto,
-            food.CreatedAt,
-            food.UpdatedAt);
     }
 }

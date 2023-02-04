@@ -1,5 +1,6 @@
 using FoodRatingApi.Entities;
 using FoodRatingApi.Extensions;
+using FoodRatingApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,7 @@ builder.Services.AddDbContext<FoodRatingDbContext>(options =>
 });
 
 builder.Services.AddObjectStorage();
+builder.Services.AddScoped<IFoodRatingDtoMapper, FoodRatingDtoMapper>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

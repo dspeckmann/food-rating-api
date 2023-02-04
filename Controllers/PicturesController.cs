@@ -46,7 +46,7 @@ public class PicturesController : ControllerBase
             return NotFound();
         }
 
-        // TODO: Check owner. Or store owner first :D
+        // TODO: Check owner. Or better start storing the owner first :D
 
         await _storageService.DeleteObject(StorageBucketNames.Pictures, picture.ObjectName);
         _context.Remove(picture);

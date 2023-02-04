@@ -15,12 +15,18 @@ public class RatingsController : ControllerBase
 {
     private readonly FoodRatingDbContext _context;
     private readonly IStorageService _storageService;
+    private readonly IFoodRatingDtoMapper _mapper;
     private readonly ILogger<RatingsController> _logger;
 
-    public RatingsController(FoodRatingDbContext context, IStorageService storageService, ILogger<RatingsController> logger)
+    public RatingsController(
+        FoodRatingDbContext context,
+        IStorageService storageService,
+        IFoodRatingDtoMapper mapper,
+        ILogger<RatingsController> logger)
     {
         _context = context;
         _storageService = storageService;
+        _mapper = mapper;
         _logger = logger;
     }
 
@@ -55,7 +61,7 @@ public class RatingsController : ControllerBase
         }
 
         var ratings = await query.ToListAsync();
-        return await Task.WhenAll(ratings.Select(rating => MakeRatingDto(rating)));
+        return await Task.WhenAll(ratings.Select(rating => _mapper.MakeRatingDto(rating)));
 
     }
 
@@ -92,7 +98,7 @@ public class RatingsController : ControllerBase
 
         _context.Add(rating);
         await _context.SaveChangesAsync();
-        return Ok(await MakeRatingDto(rating));
+        return Ok(await _mapper.MakeRatingDto(rating));
     }
 
     [HttpDelete("{ratingId}")]
@@ -113,19 +119,15 @@ public class RatingsController : ControllerBase
             return Forbid();
         }
 
+        var pictureObjectName = rating.Picture?.ObjectName;
         _context.Remove(rating);
         await _context.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(pictureObjectName))
+        {
+            await _storageService.DeleteObject(StorageBucketNames.Pictures, pictureObjectName);
+        }
+
         return Ok();
-    }
-
-    private async Task<RatingDto> MakeRatingDto(FoodRating rating)
-    {
-        var pet = new PetDto(rating.Pet!.Id, rating.Pet.Name, null, rating.Pet.CreatedAt, rating.Pet.UpdatedAt);
-        var food = new FoodDto(rating.Food!.Id, rating.Food.Name, null, rating.Food.CreatedAt, rating.Food.UpdatedAt);
-        var picture = rating.Picture is not null
-            ? new PictureDto(rating.Picture.Id, await _storageService.GetPresignedDownloadUrl(StorageBucketNames.Pictures, rating.Picture.ObjectName))
-            : null;
-
-        return new RatingDto(pet, food, rating.Taste, rating.Wellbeing, rating.Comment, picture, rating.CreatedAt);
     }
 }
