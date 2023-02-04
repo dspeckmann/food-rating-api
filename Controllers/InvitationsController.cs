@@ -27,7 +27,7 @@ public class InvitationsController : ControllerBase
     }
 
     [HttpPost("/api/pets/{petId}/[controller]")]
-    public async Task<ActionResult> CreateInvitation([FromRoute] Guid petId)
+    public async Task<ActionResult<InvitationDto>> CreateInvitation([FromRoute] Guid petId)
     {
         var userId = User.GetUserId();
         var pet = await _context.Pets.FindAsync(petId);
@@ -40,7 +40,7 @@ public class InvitationsController : ControllerBase
         await _context.Invitations.AddAsync(invitation);
         await _context.SaveChangesAsync();
 
-        return Ok();
+        return Ok(new InvitationDto(invitation.Id, invitation.ExpiresAt));
     }
 
     [HttpPost("{invitationId}/accept")]
