@@ -13,6 +13,7 @@ builder.Services.AddDbContext<FoodRatingDbContext>(options =>
     options.UseNpgsql(config.GetConnectionString("Default"));
 });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddObjectStorage();
 builder.Services.AddScoped<IFoodRatingDtoMapper, FoodRatingDtoMapper>();
 builder.Services.AddControllers();
