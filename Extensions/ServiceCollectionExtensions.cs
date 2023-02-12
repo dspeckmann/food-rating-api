@@ -1,12 +1,11 @@
 ﻿using FoodRatingApi.Services;
 
-namespace FoodRatingApi.Extensions
+namespace FoodRatingApi.Extensions;
+
+public static class ServiceCollectionExtensions
 {
-    public static class ServiceCollectionExtensions
+    public static void AddObjectStorage(this IServiceCollection services)
     {
-        public static void AddObjectStorage(this IServiceCollection services)
-        {
-            services.AddSingleton<IStorageService, StorageService>();
-        }
+        services.AddSingleton<IStorageService, StorageService>();
     }
 }

@@ -33,9 +33,9 @@ public class StorageService : IStorageService
             entry.SetAbsoluteExpiration(TimeSpan.FromSeconds(MemoryCacheValidity));
 
             var args = new PresignedGetObjectArgs()
-            .WithBucket(bucketName)
-            .WithObject(objectName)
-            .WithExpiry(expiresIn);
+                .WithBucket(bucketName)
+                .WithObject(objectName)
+                .WithExpiry(expiresIn);
 
             return await _minioClient.PresignedGetObjectAsync(args);
         }) ?? string.Empty; // TODO: Why is this necessary? Can PresignedGetObjectAsync return null?

@@ -34,12 +34,23 @@ public class FoodsController : ControllerBase
     public async Task<ActionResult<IEnumerable<FoodDto>>> GetAllFoods()
     {
         var userId = User.GetUserId();
-        var foods = await _context.Foods
+        var result = await _context.Foods
             .Include(food => food.Picture)
             .Where(food => food.UserId == userId)
+            .Select(food => new
+            {
+                Food = food,
+                // TODO:
+                // 1. Check performance of this.
+                // 2. Apply this to other endpoints as well.
+                IsRatedWell = food.FoodRatings.Any(rating => rating.Taste.HasValue || rating.Wellbeing.HasValue)
+                    && food.FoodRatings.All(rating => (!rating.Taste.HasValue || rating.Taste == Taste.Good)
+                        && (!rating.Wellbeing.HasValue || rating.Wellbeing == Wellbeing.Good)),
+                LastRatingDate = food.FoodRatings.Select(rating => rating.CreatedAt).Max()
+            })
             .ToListAsync();
 
-        var dtos = await Task.WhenAll(foods.Select(food => _mapper.MakeFoodDto(food)));
+        var dtos = await Task.WhenAll(result.Select(row => _mapper.MakeFoodDto(row.Food, row.IsRatedWell, row.LastRatingDate)));
         return Ok(dtos);
     }
 

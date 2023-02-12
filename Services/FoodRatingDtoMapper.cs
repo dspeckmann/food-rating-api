@@ -12,7 +12,7 @@ public class FoodRatingDtoMapper : IFoodRatingDtoMapper
         _storageService = storageService;
     }
 
-    public async Task<FoodDto> MakeFoodDto(Food food)
+    public async Task<FoodDto> MakeFoodDto(Food food, bool? isRatedWell = null, DateTime? lastRatingDate = null)
     {
         var pictureDto = food.Picture is not null ? await MakePictureDto(food.Picture) : null;
         return new FoodDto(
@@ -20,7 +20,9 @@ public class FoodRatingDtoMapper : IFoodRatingDtoMapper
             food.Name,
             pictureDto,
             food.CreatedAt,
-            food.UpdatedAt);
+            food.UpdatedAt,
+            isRatedWell,
+            lastRatingDate);
     }
 
     public async Task<PetDto> MakePetDto(Pet pet)
