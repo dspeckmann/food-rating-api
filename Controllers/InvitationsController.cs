@@ -87,7 +87,7 @@ public class InvitationsController : ControllerBase
         }
 
         var pet = invitation.Pet!;
-        pet.OwnerIds.Append(userId).ToArray();
+        pet.OwnerIds = pet.OwnerIds.Append(userId).ToArray();
         _context.Remove(invitation);
         await _context.SaveChangesAsync();
 
