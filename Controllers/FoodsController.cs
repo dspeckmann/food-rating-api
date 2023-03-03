@@ -36,7 +36,11 @@ public class FoodsController : ControllerBase
         var userId = User.GetUserId();
         var result = await _context.Foods
             .Include(food => food.Picture)
-            .Where(food => food.UserId == userId)
+            .Where(food =>
+                food.UserId == userId
+                // TODO: Check performance
+                // TODO: Only works for foods with ratings. Share them in a different way with another table maybe?
+                || food.FoodRatings.Any(rating => rating.Pet!.OwnerIds.Contains(userId)))
             .Select(food => new
             {
                 Food = food,

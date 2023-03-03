@@ -48,7 +48,7 @@ public class RatingsController : ControllerBase
     {
         var userId = User.GetUserId();
         IQueryable<FoodRating> query = _context.FoodRatings
-            .Where(rating => rating.UserId == userId)
+            .Where(rating => rating.UserId == userId || rating.Pet!.OwnerIds.Contains(userId))
             .Include(rating => rating.Picture)
             .Include(rating => rating.Food)
                 .ThenInclude(food => food!.Picture)
@@ -77,8 +77,9 @@ public class RatingsController : ControllerBase
             return BadRequest();
         }
 
-        // TODO: Should foods also be shared across accounts?
-        if (food.UserId != userId || !pet.OwnerIds.Contains(userId))
+        // TODO: Check if food belongs to owner or co-owner?
+
+        if (!pet.OwnerIds.Contains(userId))
         {
             return Forbid();
         }
