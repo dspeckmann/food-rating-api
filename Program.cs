@@ -3,6 +3,7 @@ using FoodRatingApi.Extensions;
 using FoodRatingApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Sentry.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +31,17 @@ builder.Services.AddAuthentication(options =>
     options.Audience = config.GetValue<string>("Auth0:Audience");
 });
 
+var sentryDsn = config.GetValue<string>("Sentry:Dsn");
+if (!string.IsNullOrWhiteSpace(sentryDsn))
+{
+    builder.Services.AddSentry().AddSentryOptions(options =>
+    {
+        options.Dsn = sentryDsn;
+        options.Debug = config.GetValue<bool>("Sentry:Debug");
+        options.TracesSampleRate = config.GetValue<double>("Sentry:TracesSampleRate");
+    });
+}
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -46,6 +58,8 @@ else
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+app.UseSentryTracing();
 
 // Automatically migrate database on startup.
 using (var scope = app.Services.CreateScope())
